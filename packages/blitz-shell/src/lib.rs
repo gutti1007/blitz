@@ -115,9 +115,26 @@ impl ShellProvider for BlitzShellProvider {
     }
     fn set_ime_enabled(&self, is_enabled: bool) {
         if is_enabled {
-            let _ = self.window.request_ime_update(ImeRequest::Enable(
-                ImeEnableRequest::new(ImeCapabilities::new(), ImeRequestData::default()).unwrap(),
-            ));
+            // The `cursor_area` capability has to be declared up front. Without it
+            // every later `set_ime_cursor_area` is rejected: `ImeRequestData` and the
+            // declared capabilities are cross-checked, and backends additionally gate
+            // the update on the capability being present. The candidate window would
+            // then stay wherever the platform last put it, which is the top-left of
+            // the window for a freshly focused input.
+            //
+            // Enabling with a capability requires supplying its initial value, so pass
+            // a placeholder rect here; `set_ime_cursor_area` replaces it as soon as an
+            // element is focused.
+            let request = ImeEnableRequest::new(
+                ImeCapabilities::new().with_cursor_area(),
+                ImeRequestData::default().with_cursor_area(
+                    LogicalPosition::new(0.0_f32, 0.0_f32).into(),
+                    LogicalSize::new(1.0_f32, 1.0_f32).into(),
+                ),
+            );
+            if let Some(request) = request {
+                let _ = self.window.request_ime_update(ImeRequest::Enable(request));
+            }
         } else {
             let _ = self.window.request_ime_update(ImeRequest::Disable);
         }
