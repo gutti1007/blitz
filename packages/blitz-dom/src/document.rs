@@ -1310,6 +1310,9 @@ impl BaseDocument {
         self.snapshot_node_and(focus_node_id, |node| node.focus(shell_provider));
 
         self.focus_node_id = Some(focus_node_id);
+        // Report the caret-based IME cursor area for the newly focused input after the next
+        // layout pass, so the candidate window starts at the caret instead of the input's origin.
+        self.pending_ime_cursor_update = Some(focus_node_id);
 
         true
     }
@@ -1355,7 +1358,21 @@ impl BaseDocument {
         };
         let y_offset = node.text_input_v_centering_offset(scale as f64);
 
-        let rect = input.editor.ime_cursor_area();
+        // The platform anchors the candidate window at the start of the composition, and reads the
+        // stored rect when a composition begins. The caret position at that moment *is* that
+        // start, so reporting the caret whenever we are not composing is both sufficient and
+        // correct.
+        //
+        // Deliberately report nothing while composing. `PlainEditor::ime_cursor_area()` would be
+        // the natural source there, but it lags a full composition behind, so pushing it would
+        // overwrite the correct value with the previous composition's position and drag the
+        // candidate window back towards the start of the line.
+        if input.editor.is_composing() {
+            return;
+        }
+        let Some(rect) = input.editor.cursor_geometry(0.0) else {
+            return;
+        };
         let pos = node.absolute_content_box_position();
         let x = pos.x - scroll_x + rect.x0 as f32 / scale;
         let y = pos.y + y_offset as f32 - scroll_y + rect.y0 as f32 / scale;

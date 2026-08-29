@@ -385,11 +385,11 @@ impl Node {
             .and_then(|elem| elem.text_input_data())
             .is_some()
         {
+            // Only enable the IME here. The cursor area is reported from
+            // `BaseDocument::update_ime_cursor_area`, which uses the caret rather than the whole
+            // content box; reporting the box here too would overwrite that with the input's
+            // top-left corner every time the input is refocused.
             shell_provider.set_ime_enabled(true);
-            let pos = self.absolute_content_box_position();
-            let width = self.final_layout.content_box_width();
-            let height = self.final_layout.content_box_height();
-            shell_provider.set_ime_cursor_area(pos.x, pos.y, width, height);
         }
     }
 
