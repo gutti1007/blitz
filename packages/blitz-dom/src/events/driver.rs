@@ -246,7 +246,11 @@ impl<'doc, Handler: EventHandler> EventDriver<'doc, Handler> {
                 self.handle_dom_event(DomEvent::new(target, DomEventData::KeyDown(data)))
             }
             UiEvent::Ime(data) => {
-                self.handle_dom_event(DomEvent::new(target, DomEventData::Ime(data)))
+                self.handle_dom_event(DomEvent::new(target, DomEventData::Ime(data)));
+                // The caret may have moved while composing (or a preedit was set/cleared), so
+                // re-notify the shell of the current IME cursor area to keep the candidate
+                // window following the caret.
+                self.doc.inner_mut().update_ime_cursor_area(target);
             }
             UiEvent::AppleStandardKeybinding(data) => {
                 let mut dom_event =

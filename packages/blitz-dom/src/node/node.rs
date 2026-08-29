@@ -386,13 +386,7 @@ impl Node {
             .is_some()
         {
             shell_provider.set_ime_enabled(true);
-            // `absolute_position()` already includes this node's `location`, but taffy's
-            // `content_box_x()` is defined as `location.x + border.left + padding.left`, so
-            // adding it verbatim double-counts `location`. Subtract it so the position is
-            // that of the content box rather than the border box.
-            let mut pos = self.absolute_position(0.0, 0.0);
-            pos.x += self.final_layout.content_box_x() - self.final_layout.location.x;
-            pos.y += self.final_layout.content_box_y() - self.final_layout.location.y;
+            let pos = self.absolute_content_box_position();
             let width = self.final_layout.content_box_width();
             let height = self.final_layout.content_box_height();
             shell_provider.set_ime_cursor_area(pos.x, pos.y, width, height);
@@ -1153,6 +1147,18 @@ impl Node {
             .get()
             .map(|i| self.with(i).absolute_position(x, y))
             .unwrap_or(crate::util::Point { x, y })
+    }
+
+    /// The Document-relative coordinates of the top-left corner of this node's content box.
+    ///
+    /// `taffy::Layout::content_box_x()` is defined as `location.x + border.left + padding.left`,
+    /// while `absolute_position()` already includes `location.x`, so `location` is subtracted to
+    /// avoid counting it twice.
+    pub fn absolute_content_box_position(&self) -> crate::util::Point<f32> {
+        let mut pos = self.absolute_position(0.0, 0.0);
+        pos.x += self.final_layout.content_box_x() - self.final_layout.location.x;
+        pos.y += self.final_layout.content_box_y() - self.final_layout.location.y;
+        pos
     }
 
     /// Creates a synthetic click event

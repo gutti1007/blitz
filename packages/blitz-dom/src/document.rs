@@ -1308,6 +1308,40 @@ impl BaseDocument {
         true
     }
 
+    /// Notify the shell of the IME cursor area for the given node (the focused input), so the
+    /// platform's candidate window follows the caret while text is being composed.
+    ///
+    /// The rectangle comes from parley's `PlainEditor::ime_cursor_area()`, which bounds the
+    /// preedit text (or the selection, when there is none). Unlike `cursor_geometry()` it is
+    /// anchored at the start of the preedit text, which is what macOS' `firstRectForCharacterRange:`
+    /// expects. Parley reports geometry in its own layout space, which is scaled by the editor's
+    /// scale (the device pixel ratio), so the rectangle is converted to CSS pixels and offset by
+    /// the input's absolute content-box position.
+    pub fn update_ime_cursor_area(&mut self, node_id: usize) {
+        let Some(node) = self.get_node(node_id) else {
+            return;
+        };
+        let Some(element) = node.element_data() else {
+            return;
+        };
+        let Some(input) = element.text_input_data() else {
+            return;
+        };
+        let Some(layout) = input.editor.try_layout() else {
+            return;
+        };
+        let scale = layout.scale();
+        let rect = input.editor.ime_cursor_area();
+
+        let pos = node.absolute_content_box_position();
+        let x = pos.x + rect.x0 as f32 / scale;
+        let y = pos.y + rect.y0 as f32 / scale;
+        let width = (rect.x1 - rect.x0) as f32 / scale;
+        let height = (rect.y1 - rect.y0) as f32 / scale;
+
+        self.shell_provider.set_ime_cursor_area(x, y, width, height);
+    }
+
     pub fn active_node(&mut self) -> bool {
         let Some(hover_node_id) = self.get_hover_node_id() else {
             return false;
