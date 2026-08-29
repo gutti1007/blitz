@@ -304,6 +304,12 @@ pub(crate) fn handle_dom_event<F: FnMut(DomEvent)>(
     if may_move_text_input_caret {
         if let Some(focus_id) = doc.focus_node_id {
             doc.clamp_text_input_scroll(focus_id);
+            // The caret is where the next IME composition will start, so re-report it whenever it
+            // may have moved -- not only on IME events. A newline, an arrow key or a click moves
+            // the caret without producing one, and the platform would otherwise keep placing the
+            // candidate window at the caret's previous position. Deferred to the layout pass
+            // because the position depends on layout state resolved there.
+            doc.pending_ime_cursor_update = Some(focus_id);
         }
     }
 }
