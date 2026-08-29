@@ -1314,9 +1314,7 @@ impl BaseDocument {
     /// The rectangle comes from parley's `PlainEditor::ime_cursor_area()`, which bounds the
     /// preedit text (or the selection, when there is none). Unlike `cursor_geometry()` it is
     /// anchored at the start of the preedit text, which is what macOS' `firstRectForCharacterRange:`
-    /// expects. Parley reports geometry in its own layout space, which is scaled by the editor's
-    /// scale (the device pixel ratio), so the rectangle is converted to CSS pixels and offset by
-    /// the input's absolute content-box position.
+    /// expects.
     pub fn update_ime_cursor_area(&mut self, node_id: usize) {
         let Some(node) = self.get_node(node_id) else {
             return;
@@ -1331,11 +1329,30 @@ impl BaseDocument {
             return;
         };
         let scale = layout.scale();
-        let rect = input.editor.ime_cursor_area();
 
+        // Parley reports geometry in its own layout space, which is scaled by the editor's scale
+        // (the device pixel ratio). The rect must be converted to CSS pixels and placed at the
+        // same spot the rendering path places the text, or the candidate window drifts away from
+        // the caret. This mirrors the transform in
+        // `blitz_paint::render::NodeRenderer::draw_text_input_text` (packages/blitz-paint/src/render.rs):
+        // the text layout sits at the content-box origin, plus a vertical centering offset for
+        // single-line inputs, minus the input's internal scroll offset. Keep this in sync with
+        // that rendering path.
+        //
+        // `TextInputData::scroll_offset` is stored in CSS pixels, so (unlike render.rs) no `* scale`
+        // is applied here: we already compute in CSS pixels.
+        let scroll_offset = input.scroll_offset;
+        let (scroll_x, scroll_y) = if input.is_multiline {
+            (0.0, scroll_offset)
+        } else {
+            (scroll_offset, 0.0)
+        };
+        let y_offset = node.text_input_v_centering_offset(scale as f64);
+
+        let rect = input.editor.ime_cursor_area();
         let pos = node.absolute_content_box_position();
-        let x = pos.x + rect.x0 as f32 / scale;
-        let y = pos.y + rect.y0 as f32 / scale;
+        let x = pos.x - scroll_x + rect.x0 as f32 / scale;
+        let y = pos.y + y_offset as f32 - scroll_y + rect.y0 as f32 / scale;
         let width = (rect.x1 - rect.x0) as f32 / scale;
         let height = (rect.y1 - rect.y0) as f32 / scale;
 
