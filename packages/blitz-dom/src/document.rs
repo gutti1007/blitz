@@ -236,6 +236,11 @@ pub struct BaseDocument {
     pub(crate) hover_node_is_text: bool,
     /// The node which is currently focussed (if any)
     pub(crate) focus_node_id: Option<usize>,
+    /// Node whose IME cursor area needs to be re-reported after the next layout pass.
+    ///
+    /// Set by the event driver on IME events, and flushed by `resolve()` once the layout is up
+    /// to date, because parley only refreshes the text input's layout during the layout pass.
+    pub(crate) pending_ime_cursor_update: Option<usize>,
     /// The node which is currently active (if any)
     pub(crate) active_node_id: Option<usize>,
     /// The node which recieved a mousedown event (if any)
@@ -443,6 +448,7 @@ impl BaseDocument {
             hover_node_id: None,
             hover_node_is_text: false,
             focus_node_id: None,
+            pending_ime_cursor_update: None,
             active_node_id: None,
             mousedown_node_id: None,
             has_active_animations: false,

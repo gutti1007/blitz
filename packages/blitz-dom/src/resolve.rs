@@ -129,6 +129,16 @@ impl BaseDocument {
         self.subdoc_is_animating = subdoc_is_animating;
         timer.record_time("subdocs");
 
+        // The IME cursor area depends on parley layout state that is only refreshed during the
+        // layout pass above, so notifications deferred by the event driver are flushed here, once
+        // the coordinates are up to date. If the DOM was empty (early return above) no layout ran
+        // and the flag is intentionally left set so the notification fires after the next pass
+        // that can report fresh coordinates; `update_ime_cursor_area` is a no-op if the node no
+        // longer exists.
+        if let Some(node_id) = self.pending_ime_cursor_update.take() {
+            self.update_ime_cursor_area(node_id);
+        }
+
         timer.print_times(&format!("Resolve({}): ", self.id()));
     }
 
