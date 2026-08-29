@@ -386,9 +386,13 @@ impl Node {
             .is_some()
         {
             shell_provider.set_ime_enabled(true);
+            // `absolute_position()` already includes this node's `location`, but taffy's
+            // `content_box_x()` is defined as `location.x + border.left + padding.left`, so
+            // adding it verbatim double-counts `location`. Subtract it so the position is
+            // that of the content box rather than the border box.
             let mut pos = self.absolute_position(0.0, 0.0);
-            pos.x += self.final_layout.content_box_x();
-            pos.y += self.final_layout.content_box_y();
+            pos.x += self.final_layout.content_box_x() - self.final_layout.location.x;
+            pos.y += self.final_layout.content_box_y() - self.final_layout.location.y;
             let width = self.final_layout.content_box_width();
             let height = self.final_layout.content_box_height();
             shell_provider.set_ime_cursor_area(pos.x, pos.y, width, height);
