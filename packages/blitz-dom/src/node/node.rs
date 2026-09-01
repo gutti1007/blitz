@@ -198,13 +198,34 @@ impl Node {
 
     pub fn set_transform(&mut self, scale: f32) -> Option<Affine> {
         self.transform = self.primary_styles().and_then(|s| {
-            let w = self.final_layout.size.width * scale;
-            let h = self.final_layout.size.height * scale;
+            // Resolve the transform in CSS pixels, then map it into the device-pixel
+            // space the painter composes in.
+            //
+            // `blitz-paint` builds `Affine::translate(box_position) * node.transform`
+            // where `box_position` is `location * scale`, i.e. device pixels. A
+            // transform resolved against a device-pixel reference box got that right
+            // for percentages and wrong for absolute lengths: `translateY(100px)`
+            // stayed 100 in a space where one CSS pixel spans `scale` units, so on a
+            // 2x display it moved half as far as it should.
+            //
+            // Resolving against the unscaled box keeps percentages and lengths in the
+            // same (CSS pixel) space, and conjugating by the scale converts the whole
+            // matrix at once: translations pick up the factor, while rotation, scale
+            // and skew are left untouched.
             let reference_box = Rect::new(
                 Point2D::new(CSSPixelLength::new(0.0), CSSPixelLength::new(0.0)),
-                Size2D::new(CSSPixelLength::new(w), CSSPixelLength::new(h)),
+                Size2D::new(
+                    CSSPixelLength::new(self.final_layout.size.width),
+                    CSSPixelLength::new(self.final_layout.size.height),
+                ),
             );
-            crate::resolve_2d_transform(s.get_box(), reference_box)
+            let css_px_transform = crate::resolve_2d_transform(s.get_box(), reference_box)?;
+
+            let scale = scale as f64;
+            if scale == 1.0 {
+                return Some(css_px_transform);
+            }
+            Some(Affine::scale(scale) * css_px_transform * Affine::scale(1.0 / scale))
         });
 
         self.transform
