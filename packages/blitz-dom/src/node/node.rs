@@ -328,7 +328,13 @@ impl Node {
         if let Some(mut data) = self.stylo_element_data.get_mut() {
             data.hint |= RestyleHint::RESTYLE_STYLE_ATTRIBUTE;
         }
-        self.set_dirty_descendants();
+        // The style traversal only descends into subtrees whose *ancestors* carry
+        // `dirty_descendants`. Setting the flag on this node alone (as this used to do)
+        // never gets the traversal here unless some sibling mutation happened to dirty
+        // the parent, so a changed inline style could keep its old computed value
+        // indefinitely (e.g. a spacer `div { height: "..." }` in a virtual list).
+        // Mirror `DocumentMutator::set_attribute`.
+        self.mark_ancestors_dirty();
     }
 
     /// Marks all ancestors of this node as having dirty descendants.
