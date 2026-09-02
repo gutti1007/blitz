@@ -1165,15 +1165,29 @@ impl Node {
     }
 
     /// Computes the Document-relative coordinates of the `Node`
+    ///
+    /// `(x, y)` is a point in this node's border-box coordinates. A node's own
+    /// `scroll_offset` moves its *content*, not its box, so it is only subtracted
+    /// while walking up through ancestors (see `absolute_position_of_content`).
+    /// Subtracting it here too made a scroll container's own bounding rect shift
+    /// as it scrolled, which is not what `getBoundingClientRect` reports.
     pub fn absolute_position(&self, x: f32, y: f32) -> crate::util::Point<f32> {
-        let x = x + self.final_layout.location.x - self.scroll_offset.x as f32;
-        let y = y + self.final_layout.location.y - self.scroll_offset.y as f32;
+        let x = x + self.final_layout.location.x;
+        let y = y + self.final_layout.location.y;
 
         // Recurse up the layout hierarchy
         self.layout_parent
             .get()
-            .map(|i| self.with(i).absolute_position(x, y))
+            .map(|i| self.with(i).absolute_position_of_content(x, y))
             .unwrap_or(crate::util::Point { x, y })
+    }
+
+    /// Like [`absolute_position`](Self::absolute_position) but for a point given in
+    /// this node's scrolled content coordinates (i.e. a descendant's position).
+    fn absolute_position_of_content(&self, x: f32, y: f32) -> crate::util::Point<f32> {
+        let x = x - self.scroll_offset.x as f32;
+        let y = y - self.scroll_offset.y as f32;
+        self.absolute_position(x, y)
     }
 
     /// The Document-relative coordinates of the top-left corner of this node's content box.
