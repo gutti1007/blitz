@@ -611,6 +611,14 @@ impl ElementCx<'_, '_> {
         if opacity == 0.0 {
             return;
         }
+        // vello_hybrid reserves solid paints whose premultiplied alpha quantizes to 0
+        // for clipping and debug-asserts on them. At the tail of the fade-out
+        // `opacity` is still > 0 but small enough that the multiplied alpha rounds
+        // to 0, so drop those paints instead of submitting them.
+        let faded = |color: Color| -> Option<Color> {
+            let color = color.multiply_alpha(opacity);
+            (color.to_rgba8().a > 0).then_some(color)
+        };
 
         // Default thumb palette for the used color scheme; thumbs paint as
         // fill plus a thin contrast stroke so they read over same-colored
@@ -658,13 +666,9 @@ impl ElementCx<'_, '_> {
                         Rect::new(rect.x0, padding_box.y0, rect.x1, padding_box.y1)
                     }
                 };
-                scene.fill(
-                    Fill::NonZero,
-                    self.transform,
-                    track_color.multiply_alpha(opacity),
-                    None,
-                    &track_rect,
-                );
+                if let Some(track_color) = faded(track_color) {
+                    scene.fill(Fill::NonZero, self.transform, track_color, None, &track_rect);
+                }
             }
 
             let this = ScrollbarRef { node_id, axis };
@@ -682,25 +686,29 @@ impl ElementCx<'_, '_> {
                 AbsoluteAxis::Horizontal => rect.height() / 2.0,
                 AbsoluteAxis::Vertical => rect.width() / 2.0,
             };
-            scene.fill(
-                Fill::NonZero,
-                self.transform,
-                color.multiply_alpha(opacity),
-                None,
-                &rect.to_rounded_rect(radius),
-            );
+            if let Some(color) = faded(color) {
+                scene.fill(
+                    Fill::NonZero,
+                    self.transform,
+                    color,
+                    None,
+                    &rect.to_rounded_rect(radius),
+                );
+            }
             // Contrast stroke, default thumbs only: an author-specified
             // scrollbar-color is rendered exactly as given.
             if custom_thumb.is_none() {
                 let stroke_width = self.scale;
                 let stroke_rect = rect.inset(-stroke_width / 2.0);
-                scene.stroke(
-                    &Stroke::new(stroke_width),
-                    self.transform,
-                    stroke_color.multiply_alpha(opacity),
-                    None,
-                    &stroke_rect.to_rounded_rect(radius - stroke_width / 2.0),
-                );
+                if let Some(stroke_color) = faded(stroke_color) {
+                    scene.stroke(
+                        &Stroke::new(stroke_width),
+                        self.transform,
+                        stroke_color,
+                        None,
+                        &stroke_rect.to_rounded_rect(radius - stroke_width / 2.0),
+                    );
+                }
             }
         }
     }
