@@ -435,8 +435,16 @@ pub(crate) fn handle_pointerdown(
     match click_target {
         ClickTarget::Disabled => (),
         ClickTarget::SelectableText => {
-            // Handle text selection for non-input elements
-            if let Some((inline_root_id, byte_offset)) = doc.find_text_position(x, y) {
+            // Handle text selection for non-input elements.
+            //
+            // `user-select: none` has to be honoured here, not only on the drag path
+            // below. A click alone starts a selection, so without this check an
+            // application that opts out of native selection still gets one on every
+            // click. The property inherits, so walk the ancestors rather than looking
+            // at the hit node alone - the declaration is usually on a container.
+            if selection_disabled_for(doc, actual_target) {
+                doc.clear_text_selection();
+            } else if let Some((inline_root_id, byte_offset)) = doc.find_text_position(x, y) {
                 doc.set_text_selection(inline_root_id, byte_offset, inline_root_id, byte_offset);
                 doc.shell_provider.request_redraw();
             } else {
@@ -772,4 +780,23 @@ pub(crate) fn handle_wheel<F: FnMut(DomEvent)>(
     if has_changed {
         doc.shell_provider.request_redraw();
     }
+}
+
+/// Whether `user-select: none` applies to `node_id` or any of its ancestors.
+///
+/// The property inherits, but a text node carries no declaration of its own and the
+/// declaration is normally written on a container several levels up, so resolving it
+/// means walking the chain.
+fn selection_disabled_for(doc: &BaseDocument, node_id: usize) -> bool {
+    let mut current = Some(node_id);
+    while let Some(id) = current {
+        let node = &doc.nodes[id];
+        if let Some(style) = node.primary_styles()
+            && style.clone_user_select() == UserSelect::None
+        {
+            return true;
+        }
+        current = node.parent;
+    }
+    false
 }
