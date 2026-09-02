@@ -688,6 +688,18 @@ impl BaseDocument {
 
                     if node.style.position == Position::Absolute {
                         let direction = node.style.direction;
+                        // Parley reports inline box geometry in device pixels (the text is laid
+                        // out at `font_size * scale`). The in-flow branch below divides by
+                        // `scale`; the static position used for absolutely positioned boxes must
+                        // be converted the same way, or the box lands at `scale` times its
+                        // true offset on HiDPI displays.
+                        let ibox = parley::layout::PositionedInlineBox {
+                            x: ibox.x / scale,
+                            y: ibox.y / scale,
+                            width: ibox.width / scale,
+                            height: ibox.height / scale,
+                            ..ibox
+                        };
                         layout_abspos_child(self, ibox, final_size, taffy::Point::ZERO, direction);
                     } else if is_floated {
                         let layout = &mut self.nodes[ibox.id as usize].unrounded_layout;
