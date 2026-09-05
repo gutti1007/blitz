@@ -1012,6 +1012,21 @@ impl Node {
             return None;
         }
 
+        // An element whose overflow is not `visible` clips its descendants when painting, so
+        // it must not be hit outside its own box either. Without this, the content of a
+        // scroll container (or of an `overflow: hidden` panel) that extends past the box is
+        // hit-testable through whatever is painted over it.
+        {
+            use style::values::computed::Overflow;
+            let clips_overflow = self.primary_styles().is_some_and(|style| {
+                style.clone_overflow_x() != Overflow::Visible
+                    || style.clone_overflow_y() != Overflow::Visible
+            });
+            if clips_overflow && !matches_self {
+                return None;
+            }
+        }
+
         // Descendants overwrite, so the innermost scroll container's thumb
         // wins. Thumb coords are border-box relative (unscrolled).
         if matches_self
